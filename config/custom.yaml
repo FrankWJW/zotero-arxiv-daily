@@ -28,5 +28,5 @@ source:
 executor:
   debug: ${oc.env:DEBUG,null}
   source: ['arxiv']
-  send_email: ${oc.env:SEND_EMAIL,true}
-  send_telegram: ${oc.env:SEND_TELEGRAM,false}
+  send_email: ${oc.env:SEND_EMAIL,false}
+  send_telegram: ${oc.env:SEND_TELEGRAM,true}
