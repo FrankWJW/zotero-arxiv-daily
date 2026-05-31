@@ -6,7 +6,7 @@ import io
 
 import pytest
 
-from zotero_arxiv_daily.utils import glob_match, send_email, extract_tex_code_from_tar, _bm25_pick
+from zotero_arxiv_daily.utils import glob_match, send_email, send_telegram, extract_tex_code_from_tar, _bm25_pick, _telegram_chunks
 from tests.canned_responses import make_stub_smtp
 
 
@@ -288,3 +288,42 @@ class TestBm25Pick:
         candidates = {"a.tex": "hello", "b.tex": "world"}
         result = _bm25_pick("", candidates)
         assert result in candidates
+
+# ---------------------------------------------------------------------------
+# send_telegram
+# ---------------------------------------------------------------------------
+
+
+def test_telegram_chunks_split_long_text():
+    chunks = list(_telegram_chunks("a" * 4001, limit=1000))
+    assert len(chunks) == 5
+    assert all(len(c) <= 1000 for c in chunks)
+
+
+def test_send_telegram_uses_env_and_posts_chunks(config, monkeypatch):
+    calls = []
+
+    class StubResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            return False
+        def read(self):
+            return b'{"ok":true}'
+
+    def fake_urlopen(req, timeout):
+        calls.append((req.full_url, req.data.decode("utf-8"), timeout))
+        return StubResponse()
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "bot-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "-1003740365772")
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    send_telegram(config, "hello telegram")
+
+    assert len(calls) == 1
+    url, payload, timeout = calls[0]
+    assert url == "https://api.telegram.org/botbot-token/sendMessage"
+    assert "chat_id=-1003740365772" in payload
+    assert "text=hello+telegram" in payload
+    assert timeout == 30

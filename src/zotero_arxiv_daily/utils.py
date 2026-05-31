@@ -2,7 +2,10 @@ import tarfile
 import re
 import glob
 import math
+import os
 import smtplib
+import urllib.parse
+import urllib.request
 from collections import Counter
 from email.header import Header
 from email.mime.text import MIMEText
@@ -169,3 +172,51 @@ def send_email(config:DictConfig, html:str):
     server.login(sender, password)
     server.sendmail(sender, [receiver], msg.as_string())
     server.quit()
+
+def _telegram_chunks(text: str, limit: int = 3900):
+    """Yield Telegram-safe message chunks.
+
+    Telegram's hard limit is 4096 characters for sendMessage. Keep a small
+    margin for transport quirks and prefer splitting at paragraph boundaries.
+    """
+    text = text.strip()
+    while len(text) > limit:
+        cut = text.rfind("\n\n", 0, limit)
+        if cut == -1:
+            cut = text.rfind("\n", 0, limit)
+        if cut == -1:
+            cut = limit
+        yield text[:cut].strip()
+        text = text[cut:].strip()
+    if text:
+        yield text
+
+
+def send_telegram(config: DictConfig, text: str):
+    """Send a plain-text digest to a Telegram chat or group.
+
+    Secrets can be supplied either through environment variables
+    (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) or through the Hydra config's
+    `telegram.bot_token` / `telegram.chat_id` fields. Plain text is used instead
+    of Telegram HTML/Markdown so paper titles, abstracts, and URLs cannot break
+    parsing.
+    """
+    telegram_config = config.get("telegram", {})
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") or telegram_config.get("bot_token")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID") or telegram_config.get("chat_id")
+
+    if not token or not chat_id:
+        raise ValueError("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    for chunk in _telegram_chunks(text):
+        payload = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": chunk,
+            "disable_web_page_preview": "false",
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8", "replace")
+            if '"ok":true' not in body:
+                raise RuntimeError(f"Telegram send failed: {body}")

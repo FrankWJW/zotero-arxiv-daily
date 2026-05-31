@@ -4,11 +4,12 @@ from omegaconf import DictConfig, ListConfig
 from .utils import glob_match
 from .retriever import get_retriever_cls
 from .protocol import CorpusPaper
+import os
 import random
 from datetime import datetime
 from .reranker import get_reranker_cls
-from .construct_email import render_email
-from .utils import send_email
+from .construct_email import render_email, render_telegram
+from .utils import send_email, send_telegram
 from openai import OpenAI
 from tqdm import tqdm
 
@@ -27,6 +28,25 @@ def normalize_path_patterns(patterns: list[str] | ListConfig | None, config_key:
         raise TypeError(f"config.zotero.{config_key} must contain only glob pattern strings.")
 
     return list(patterns)
+
+
+def config_bool(value, default: bool = False) -> bool:
+    """Interpret bool-like Hydra/env values.
+
+    OmegaConf environment interpolation can leave values such as
+    `${oc.env:SEND_TELEGRAM,false}` as strings in tests or user configs. Treat
+    common false-y strings as False instead of relying on Python truthiness.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        value = value.strip().lower()
+        if value == "":
+            return default
+        return value in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 class Executor:
@@ -118,7 +138,21 @@ class Executor:
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
-        logger.info("Sending email...")
-        email_content = render_email(reranked_papers)
-        send_email(self.config, email_content)
-        logger.info("Email sent successfully")
+        send_email_enabled = config_bool(
+            os.environ.get("SEND_EMAIL", self.config.executor.get("send_email", True)),
+            True,
+        )
+        send_telegram_enabled = config_bool(
+            os.environ.get("SEND_TELEGRAM", self.config.executor.get("send_telegram", False)),
+            False,
+        )
+        if send_email_enabled:
+            logger.info("Sending email...")
+            email_content = render_email(reranked_papers)
+            send_email(self.config, email_content)
+            logger.info("Email sent successfully")
+        if send_telegram_enabled:
+            logger.info("Sending Telegram message...")
+            telegram_content = render_telegram(reranked_papers)
+            send_telegram(self.config, telegram_content)
+            logger.info("Telegram message sent successfully")

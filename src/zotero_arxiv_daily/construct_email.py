@@ -129,3 +129,28 @@ def render_email(papers:list[Paper]) -> str:
 
     content = '<br>' + '</br><br>'.join(parts) + '</br>'
     return framework.replace('__CONTENT__', content)
+
+def render_telegram(papers: list[Paper]) -> str:
+    """Render papers as plain text suitable for Telegram sendMessage."""
+    if len(papers) == 0:
+        return "Daily arXiv / Zotero Radar\n\nNo Papers Today. Take a Rest!"
+
+    parts = ["Daily arXiv / Zotero Radar"]
+    for idx, p in enumerate(papers, 1):
+        rate = round(p.score, 1) if p.score is not None else "Unknown"
+        author_list = [a for a in p.authors]
+        if len(author_list) <= 5:
+            authors = ", ".join(author_list)
+        else:
+            authors = ", ".join(author_list[:3] + ["..."] + author_list[-2:])
+
+        tldr = p.tldr or p.abstract or "No TLDR available."
+        pdf = p.pdf_url or p.url
+        parts.append(
+            f"\n{idx}. {p.title}\n"
+            f"Authors: {authors}\n"
+            f"Relevance: {rate}\n"
+            f"TLDR: {tldr}\n"
+            f"PDF: {pdf}"
+        )
+    return "\n".join(parts)

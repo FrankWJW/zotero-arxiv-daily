@@ -1,6 +1,6 @@
 """Tests for zotero_arxiv_daily.construct_email: render_email, get_stars, get_block_html."""
 
-from zotero_arxiv_daily.construct_email import render_email, get_stars, get_block_html, get_empty_html
+from zotero_arxiv_daily.construct_email import render_email, render_telegram, get_stars, get_block_html, get_empty_html
 from tests.canned_responses import make_sample_paper
 
 
@@ -76,3 +76,17 @@ def test_get_block_html_contains_all_fields():
 def test_get_empty_html():
     html = get_empty_html()
     assert "No Papers Today" in html
+
+def test_render_telegram_with_papers():
+    papers = [make_sample_paper(score=7.5, tldr="A great paper.", affiliations=["MIT"])]
+    text = render_telegram(papers)
+    assert "Daily arXiv / Zotero Radar" in text
+    assert "Sample Paper Title" in text
+    assert "A great paper." in text
+    assert "Relevance: 7.5" in text
+    assert "https://arxiv.org/pdf/2026.00001" in text
+
+
+def test_render_telegram_empty_list():
+    text = render_telegram([])
+    assert "No Papers Today" in text

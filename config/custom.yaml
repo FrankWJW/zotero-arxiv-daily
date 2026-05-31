@@ -10,6 +10,10 @@ email:
   smtp_port: 465
   sender_password: ${oc.env:SENDER_PASSWORD}
 
+telegram:
+  bot_token: ${oc.env:TELEGRAM_BOT_TOKEN,null}
+  chat_id: ${oc.env:TELEGRAM_CHAT_ID,null}
+
 llm:
   api:
     key: ${oc.env:OPENAI_API_KEY}
@@ -24,3 +28,5 @@ source:
 executor:
   debug: ${oc.env:DEBUG,null}
   source: ['arxiv']
+  send_email: ${oc.env:SEND_EMAIL,true}
+  send_telegram: ${oc.env:SEND_TELEGRAM,false}
