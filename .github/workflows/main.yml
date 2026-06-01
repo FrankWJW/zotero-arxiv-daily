@@ -34,7 +34,9 @@ jobs:
           SEND_TELEGRAM: ${{ vars.SEND_TELEGRAM || 'true' }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
-          printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
-          echo "Use custom config: "
+          if [ -n "$CUSTOM_CONFIG" ]; then
+            printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
+          fi
+          echo "Use config/custom.yaml: "
           cat config/custom.yaml
           uv run src/zotero_arxiv_daily/main.py
